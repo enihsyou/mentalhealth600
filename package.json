@@ -1,0 +1,13 @@
+{
+  "name": "mentalhealth600",
+  "version": "1.0.0",
+  "description": "跟踪门诊放号情况的脚本",
+  "main": "slot_tracker.js",
+  "type": "module",
+  "scripts": {
+    "start": "node slot_tracker.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1"
+  }
+}
