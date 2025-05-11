@@ -1,0 +1,15 @@
+# 环境变量文件
+.env
+
+# cookie文件
+.cookie.txt
+
+# 上次结果文件
+*.last_result.json
+
+# 日志文件
+*.log
+error.log.json
+
+# Node.js
+node_modules/
