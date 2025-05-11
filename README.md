@@ -4,13 +4,15 @@
 
 ## 介绍
 
-本仓库提供一个 NodeJS 脚本用于半自动化地跟踪**上海市精神卫生中心**放号并通知抢号。
+本仓库提供一个 NodeJS 脚本用于自动化地跟踪**上海市精神卫生中心**放号并通知人类。
+
+也就是 <https://fwcs.linkingcloud.cn/app/unattended/index.html#/outpatientService/yuyue/register?deptCode=1001_1_1207> 这个页面
 
 ## 配置
 
 在运行脚本之前，请确保已配置以下环境变量：
 
-- `OpenID_LinkingCloud`: 通过微信搜索上海市精神卫生中心，点击预约挂号，登陆后进`开发者工具 > 应用程序`抓取 Cookie 中的同名条目
+- `OpenID_LinkingCloud`: 通过微信搜索上海市精神卫生中心，点击预约挂号，登陆后进浏览器`开发者工具 > 应用程序`提取 Cookie 中的同名条目
 - `PUSHDEAR_KEYS`: 开源易用免安装的推送方案 [PushDear](https://www.pushdeer.com/)
 - `SENDCHAN_KEY`: [Server酱](https://sct.ftqq.com/) 推送方案，作为备用
 
