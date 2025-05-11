@@ -20,6 +20,18 @@ const doctorInfoMap = {
     "1001_1_1207_1322": "李冠军",
 };
 
+// 更新医生信息映射
+// data 结构见 sample_messages/OrderDocNoSources.resp.json
+function updateDoctorInfoMapFromOrderDocNoSources(data, docCode) {
+    if (doctorInfoMap[docCode]) {
+        return; // 如果医生信息已存在，则不更新
+    }
+    const docName = data?.docInfo?.docName ?? null;
+    if (docName) {
+        doctorInfoMap[docCode] = docName;
+    }
+}
+
 // 添加错误记录文件路径
 const ERROR_LOG_PATH = path.join(__dirname, "error.log.json");
 
@@ -300,7 +312,7 @@ async function apiJsonCheckOk(response) {
 
 // 检查医生哪天有号
 async function checkDoctorSlots(docCode) {
-    const docName = doctorInfoMap[docCode] || docCode;
+    let docName = doctorInfoMap[docCode] || docCode;
 
     // 检查医生特定日期的可用时段
     async function checkDoctorDaySlots(day) {
@@ -348,6 +360,8 @@ async function checkDoctorSlots(docCode) {
         if (!data) {
             return;
         }
+        updateDoctorInfoMapFromOrderDocNoSources(data, docCode);
+        docName = doctorInfoMap[docCode] || docCode;
 
         // 找出医生可上班且有号的日期
         const availableDays = data.docResourceDayList.filter((day) => day.isDay === "1" && day.isAvailable === "1");
@@ -466,7 +480,7 @@ async function checkAvailableSlots() {
             let notificationContent = "";
 
             availableSlots.forEach((slot) => {
-                const doctorName = doctorInfoMap[slot.docCode] || "未知医生";
+                const doctorName = doctorInfoMap[slot.docCode] || slot.docCode;
                 const message = `医生: ${doctorName}, 日期: ${slot.day}, 详情: ${slot.resourceMemo}`;
                 console.log(message);
                 notificationContent += message + "\n\n"; // markdown break line
