@@ -13,24 +13,56 @@ const __dirname = path.dirname(__filename);
 // 加载环境变量
 dotenv.config();
 
-const searchDeptCode = "1001_1_1207"; // 成人ADHD咨询
-const doctorInfoMap = {
+// 所有用到的环境变量列在此处
+const ENV_SENDCHAN_KEY = process.env.SENDCHAN_KEY;
+const ENV_PUSHDEAR_KEYS = process.env.PUSHDEAR_KEYS;
+const ENV_OPENID_LINKINGCLOUD = process.env.OpenID_LinkingCloud;
+const ENV_NOTIFY_HAJI_ONLY = process.env.NOTIFY_HAJI_ONLY;
+
+// 编码和名称的映射，可在运行时更新
+const infoMap = {
     "1001_1_1207_633": "廖力维",
     "1001_1_1207_922": "金金",
     "1001_1_1207_1322": "李冠军",
-};
+    "1001_1_1207": "成人ADHD咨询",
 
-// 更新医生信息映射
-// data 结构见 sample_messages/OrderDocNoSources.resp.json
-function updateDoctorInfoMapFromOrderDocNoSources(data, docCode) {
-    if (doctorInfoMap[docCode]) {
-        return; // 如果医生信息已存在，则不更新
-    }
-    const docName = data?.docInfo?.docName ?? null;
-    if (docName) {
-        doctorInfoMap[docCode] = docName;
-    }
-}
+    // 更新信息映射
+    // data 结构见 sample_messages/OrderDeptResources.resp.json
+    updateInfoMap(data) {
+        data?.hospitalList?.forEach(o => {
+            const code = o?.hospitalID;
+            const name = o?.hospitalName;
+            if (code && name) {
+                console.log(`更新医院信息: ${code} - ${name}`);
+                this[code] = name;
+            }
+        });
+        data?.deptLevel1List?.forEach(o => {
+            const code = o?.deptCode;
+            const name = o?.deptName;
+            if (code && name) {
+                console.log(`更新一级科室信息: ${code} - ${name}`);
+                this[code] = name;
+            }
+        });
+        data?.deptLevel2List?.forEach(o => {
+            const code = o?.deptCode;
+            const name = o?.deptName;
+            if (code && name) {
+                console.log(`更新二级科室信息: ${code} - ${name}`);
+                this[code] = name;
+            }
+        });
+        data?.deptResourceDocList?.forEach(o => {
+            const code = o?.docCode;
+            const name = o?.docName;
+            if (code && name) {
+                console.log(`更新医生信息: ${code} - ${name}`);
+                this[code] = name;
+            }
+        });
+    },
+};
 
 // 添加错误记录文件路径
 const ERROR_LOG_PATH = path.join(__dirname, "error.log.json");
@@ -43,14 +75,14 @@ function watchEnvFile() {
     const envPath = path.join(__dirname, ".env");
     console.log(`开始监听 ${envPath} 文件变化...`);
 
-    watch(envPath, (eventType) => {
+    watch(envPath, eventType => {
         if (eventType === "change") {
             console.log(".env文件已变更，重新加载环境变量...");
             // 重新加载环境变量
             dotenv.config();
 
             // 验证OpenID是否存在
-            if (!process.env.OpenID_LinkingCloud) {
+            if (!ENV_OPENID_LINKINGCLOUD) {
                 console.error("错误: OpenID_LinkingCloud未配置，请检查.env文件");
             } else {
                 console.log("OpenID_LinkingCloud已更新，将在下次检查时重新获取cookie");
@@ -62,7 +94,7 @@ function watchEnvFile() {
 }
 
 async function sendNotification(title, content) {
-    const SENDCHAN_KEY = process.env.SENDCHAN_KEY;
+    const SENDCHAN_KEY = ENV_SENDCHAN_KEY;
     if (SENDCHAN_KEY) {
         try {
             await sendNotificationByServerChan(SENDCHAN_KEY, title, content);
@@ -70,9 +102,9 @@ async function sendNotification(title, content) {
             console.error("Server酱通知发送失败:", error);
         }
     }
-    const PUSHDEAR_KEYS = process.env.PUSHDEAR_KEYS;
+    const PUSHDEAR_KEYS = ENV_PUSHDEAR_KEYS;
     if (PUSHDEAR_KEYS) {
-        PUSHDEAR_KEYS.split(",").forEach(async (key) => {
+        PUSHDEAR_KEYS.split(",").forEach(async key => {
             try {
                 await sendNotificationByPushDear(key, title, content);
             } catch (error) {
@@ -125,14 +157,14 @@ async function getCookie() {
     }
 
     // 检查OpenID是否存在
-    if (!process.env.OpenID_LinkingCloud) {
+    if (!ENV_OPENID_LINKINGCLOUD) {
         throw new Error("环境变量OpenID_LinkingCloud未设置，无法进行登录认证");
     }
 
     console.log("正在通过OpenID获取新的Cookie...");
 
     try {
-        const openIDCookie = `OpenID_LinkingCloud=${process.env.OpenID_LinkingCloud}`;
+        const openIDCookie = `OpenID_LinkingCloud=${ENV_OPENID_LINKINGCLOUD}`;
 
         const response = await fetch(
             "https://fwcs.linkingcloud.cn/Account/Login?ReturnUrl=%2Fapp%2Funattended%2Findex.html",
@@ -203,12 +235,12 @@ function hasResultChanged(oldData, newData) {
 
     // 比较可用预约情况
     const oldAvailable = oldData.deptResourceDocNoSourceList
-        .filter((slot) => slot.isAvailable === "1")
-        .map((slot) => `${slot.docCode}-${slot.day}-${slot.resourceMemo}`);
+        .filter(slot => slot.isAvailable === "1")
+        .map(slot => `${slot.docCode}-${slot.day}-${slot.resourceMemo}`);
 
     const newAvailable = newData.deptResourceDocNoSourceList
-        .filter((slot) => slot.isAvailable === "1")
-        .map((slot) => `${slot.docCode}-${slot.day}-${slot.resourceMemo}`);
+        .filter(slot => slot.isAvailable === "1")
+        .map(slot => `${slot.docCode}-${slot.day}-${slot.resourceMemo}`);
 
     // 如果可用预约的数量不同，说明有变化
     if (oldAvailable.length !== newAvailable.length) return true;
@@ -310,9 +342,38 @@ async function apiJsonCheckOk(response) {
     return data;
 }
 
+// 拉取编码映射
+async function fetchDeptResources() {
+    try {
+        // 获取上次结果
+        let data = undefined;
+        const lastResult = await getLastResult("OrderDeptResources");
+        if (lastResult && lastResult.length > 0) {
+            console.log(`[${new Date().toLocaleString()}] 使用上次的编码映射数据...`);
+            data = lastResult;
+        } else {
+            console.log(`[${new Date().toLocaleString()}] 正在拉取编码映射...`);
+            const response = await api("YuYue/OrderDeptResources", {});
+
+            data = await apiJsonCheckOk(response);
+            if (!data) {
+                return;
+            }
+            await saveLastResult("OrderDeptResources", data);
+        }
+        // 更新信息映射
+        if (data) {
+            infoMap.updateInfoMap(data);
+        }
+    } catch (error) {
+        await handleError(error, `拉取编码映射错误`);
+        return;
+    }
+}
+
 // 检查医生哪天有号
 async function checkDoctorSlots(docCode) {
-    let docName = doctorInfoMap[docCode] || docCode;
+    const docName = infoMap[docCode] || docCode;
 
     // 检查医生特定日期的可用时段
     async function checkDoctorDaySlots(day) {
@@ -360,18 +421,16 @@ async function checkDoctorSlots(docCode) {
         if (!data) {
             return;
         }
-        updateDoctorInfoMapFromOrderDocNoSources(data, docCode);
-        docName = doctorInfoMap[docCode] || docCode;
 
         // 找出医生可上班且有号的日期
-        const availableDays = data.docResourceDayList.filter((day) => day.isDay === "1" && day.isAvailable === "1");
+        const availableDays = data.docResourceDayList.filter(day => day.isDay === "1" && day.isAvailable === "1");
         if (availableDays.length === 0) {
-            console.log(`当前医生 ${docName} 没有可预约的日期。`);
+            console.log(`当前医生【${docName}】没有可预约的日期。`);
             return;
         }
 
         console.log(`找到 ${availableDays.length} 个可能有号的当值日期，正在查询具体时段...`);
-        let allAvailableSlots = await Promise.all(availableDays.map((day) => checkDoctorDaySlots(day.date)));
+        let allAvailableSlots = await Promise.all(availableDays.map(day => checkDoctorDaySlots(day.date)));
         allAvailableSlots = allAvailableSlots.flat();
 
         // 获取上次结果
@@ -379,8 +438,8 @@ async function checkDoctorSlots(docCode) {
         // 比较结果是否有变化
         let changed = true;
         if (lastResult && lastResult.length > 0) {
-            const thisSlotKeys = allAvailableSlots.map((slot) => JSON.stringify(slot));
-            const lastSlotKeys = lastResult.map((slot) => JSON.stringify(slot));
+            const thisSlotKeys = allAvailableSlots.map(slot => JSON.stringify(slot));
+            const lastSlotKeys = lastResult.map(slot => JSON.stringify(slot));
 
             // 排序后比较每一项
             thisSlotKeys.sort();
@@ -406,7 +465,7 @@ async function checkDoctorSlots(docCode) {
         }
         // 按日期分组
         const slotsByDate = {};
-        allAvailableSlots.forEach((slot) => {
+        allAvailableSlots.forEach(slot => {
             if (!slotsByDate[slot.date]) {
                 slotsByDate[slot.date] = [];
             }
@@ -419,7 +478,7 @@ async function checkDoctorSlots(docCode) {
             const weekday = new Date(date).toLocaleDateString("zh-CN", { weekday: "long" });
             notificationContent += `## ${date} (${weekday})\n\n`;
 
-            slots.forEach((slot) => {
+            slots.forEach(slot => {
                 let line = `${slot.time} ${slot.memo}`;
                 if (slot.haji) {
                     line = `**${line}**`; // 加粗
@@ -430,11 +489,12 @@ async function checkDoctorSlots(docCode) {
         }
 
         console.log(notificationContent);
-        const haveHaji = allAvailableSlots.some((slot) => slot.haji);
+        const haveHaji = allAvailableSlots.some(slot => slot.haji);
+        const notifyHajiOnly = !!ENV_NOTIFY_HAJI_ONLY;
         console.log("检测到预约信息有变化，发送通知...");
         if (haveHaji) {
             await sendNotification(`${docName}初诊可预约`, notificationContent);
-        } else {
+        } else if (!notifyHajiOnly) {
             await sendNotification(`${docName}可预约`, notificationContent);
         }
     } catch (error) {
@@ -443,13 +503,15 @@ async function checkDoctorSlots(docCode) {
     }
 }
 
-// 检查可用的预约并通知
+// 检查科室可用的预约并通知
 // 关注医生详情
-async function checkAvailableSlots() {
-    console.log(`[${new Date().toLocaleString()}] 正在检查预约情况...`);
+async function checkDepartmentSlots(deptCode) {
+    const deptName = infoMap[deptCode] || deptCode;
+
+    console.log(`[${new Date().toLocaleString()}] 正在检查科室 ${deptName} 预约情况...`);
     try {
-        const response = api("YuYue/OrderDocResources", {
-            deptCode: searchDeptCode,
+        const response = await api("YuYue/OrderDocResources", {
+            deptCode: deptCode,
         });
 
         const data = await apiJsonCheckOk(response);
@@ -473,19 +535,20 @@ async function checkAvailableSlots() {
         }
 
         // 筛选可用的预约
-        const availableSlots = data.deptResourceDocNoSourceList.filter((slot) => slot.isAvailable === "1");
+        const availableSlots = data.deptResourceDocNoSourceList.filter(slot => slot.isAvailable === "1");
 
         if (availableSlots.length > 0) {
             console.log("\n找到以下可用预约:");
-            let notificationContent = "";
+            let notificationContent = `# ${deptName}可预约医生\n\n`;
 
-            availableSlots.forEach((slot) => {
-                const doctorName = doctorInfoMap[slot.docCode] || slot.docCode;
-                const message = `医生: ${doctorName}, 日期: ${slot.day}, 详情: ${slot.resourceMemo}`;
-                console.log(message);
-                notificationContent += message + "\n\n"; // markdown break line
+            availableSlots.forEach(slot => {
+                const doctorName = infoMap[slot.docCode] || slot.docCode;
+                const message = `- 医生: ${doctorName}, 日期: ${slot.day}, 详情: ${slot.resourceMemo}`;
+                notificationContent += message + "\n";
             });
+            notificationContent += "\n";
 
+            console.log(notificationContent);
             console.log("检测到预约信息有变化，发送通知...");
             await sendNotification("发现可预约的医生", notificationContent);
         } else {
@@ -497,25 +560,37 @@ async function checkAvailableSlots() {
 }
 
 // 定时运行函数
-function scheduleTask(searchDocCode) {
+function scheduleTask(taskFn) {
     // 立即执行一次
-    checkDoctorSlots(searchDocCode);
+    taskFn();
 
     // 定时检查
     setInterval(() => {
         const now = new Date();
         // 每分钟的0秒执行
         if (now.getSeconds() === 0) {
-            checkDoctorSlots(searchDocCode);
+            taskFn();
         }
     }, 1000); // 每秒检查一次时间
+}
+
+async function help() {
+    console.log(`mentalhealth600 使用方法:
+
+# 按科室关注，在科室有空闲时发送提醒
+node ./slot_tracker.js [科室代码]
+# 按医生关注，在此科室的特定专家空闲时发送提醒
+node ./slot_tracker.js [医生代码]
+
+科室代码如 1001_1_1207 医生代码如 1001_1_1207_1322，认证授权方式见 README.md
+`);
 }
 
 // 主函数
 async function main() {
     try {
         // 检查环境变量
-        if (!process.env.OpenID_LinkingCloud) {
+        if (!ENV_OPENID_LINKINGCLOUD) {
             throw new Error("环境变量OpenID_LinkingCloud未设置，请检查.env文件");
         }
 
@@ -528,17 +603,28 @@ async function main() {
         // 启动.env文件监听
         watchEnvFile();
 
-        // 从命令行参数中获取 searchDocCode
-        const searchDocCode = process.argv[2];
+        await fetchDeptResources();
 
-        if (!searchDocCode) {
-            console.error("请在命令行中提供 searchDocCode 参数");
-            process.exit(1);
+        // 解析命令行参数
+        const inputCode = process.argv?.[2];
+        switch ((inputCode && inputCode?.split("_").length) || 0) {
+            case 3: {
+                const searchDeptCode = inputCode;
+                console.log(`关注科室编码: ${searchDeptCode}`);
+                scheduleTask(() => checkDepartmentSlots(searchDeptCode));
+                break;
+            }
+            case 4: {
+                const searchDocCode = inputCode;
+                console.log(`关注医生编码: ${searchDocCode}`);
+                scheduleTask(() => checkDoctorSlots(searchDocCode));
+                break;
+            }
+            default: {
+                help();
+                process.exit();
+            }
         }
-
-        // 设置定时任务
-        scheduleTask(searchDocCode);
-
         console.log("脚本正在运行中，每分钟检查一次...");
     } catch (error) {
         await handleError(error, "程序初始化错误");

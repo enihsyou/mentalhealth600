@@ -33,6 +33,9 @@ OpenID_LinkingCloud=04890EBF
 ## 运行
 
 ```shell
+# 按科室关注，在科室有空闲时发送提醒
+node ./slot_tracker.js 1001_1_1207 
+# 按专家关注，在此科室的特定专家空闲时发送提醒
 node ./slot_tracker.js 1001_1_1207_1322
 ```
 
