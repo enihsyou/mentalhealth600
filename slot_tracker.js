@@ -546,11 +546,12 @@ async function checkDepartmentSlots(deptCode) {
                 const message = `- 医生: ${doctorName}, 日期: ${slot.day}, 详情: ${slot.resourceMemo}`;
                 notificationContent += message + "\n";
             });
+            const docNames = availableSlots.map(slot => infoMap[slot.docCode] || slot.docCode).join(", ");
             notificationContent += "\n";
 
             console.log(notificationContent);
             console.log("检测到预约信息有变化，发送通知...");
-            await sendNotification("发现可预约的医生", notificationContent);
+            await sendNotification(`${deptName}可预约${docNames}`, notificationContent);
         } else {
             console.log("当前没有可用的预约。");
         }
