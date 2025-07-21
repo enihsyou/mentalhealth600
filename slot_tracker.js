@@ -546,12 +546,17 @@ async function checkDepartmentSlots(deptCode) {
                 const message = `- 医生: ${doctorName}, 日期: ${slot.day}, 详情: ${slot.resourceMemo}`;
                 notificationContent += message + "\n";
             });
-            const docNames = availableSlots.map(slot => infoMap[slot.docCode] || slot.docCode).join(", ");
+
+            // 获取去重的医生名称列表
+            const docNames = Array.from(
+                new Set(availableSlots.map(slot => infoMap[slot.docCode] || slot.docCode))
+            ).join(", ");
+
             notificationContent += "\n";
 
             console.log(notificationContent);
             console.log("检测到预约信息有变化，发送通知...");
-            await sendNotification(`${deptName}可预约${docNames}`, notificationContent);
+            await sendNotification(`${docNames}在${deptName}可预约`, notificationContent);
         } else {
             console.log("当前没有可用的预约。");
         }
