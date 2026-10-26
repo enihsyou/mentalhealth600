@@ -13,3 +13,7 @@ error.log.json
 
 # Node.js
 node_modules/
+
+# 会话与状态写入临时文件
+.session.json
+*.json.tmp
