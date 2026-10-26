@@ -5,7 +5,8 @@
   "main": "slot_tracker.js",
   "type": "module",
   "scripts": {
-    "start": "node slot_tracker.js"
+    "start": "node slot_tracker.js",
+    "clean": "node slot_tracker.js clean"
   },
   "dependencies": {
     "dotenv": "^16.3.1"

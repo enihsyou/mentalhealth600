@@ -32,7 +32,7 @@ async function writeJson(file, value) {
     await fs.rename(`${file}.tmp`, file);
 }
 
-function loadConfig() {
+function loadConfig(announce = true) {
     configRead = configRead.catch(() => {}).then(async () => {
         let parsed;
         try {
@@ -47,8 +47,10 @@ function loadConfig() {
         if (token === auth.token) return;
         auth = { token, blocked: blockedTokens.has(token) };
         catalog = undefined;
-        console.log(!token ? "JWT 未配置，等待更新 .env"
-            : auth.blocked ? "该 JWT 已失效，继续等待新 JWT" : "JWT 已更新，恢复查询");
+        if (announce) {
+            console.log(!token ? "JWT 未配置，等待更新 .env"
+                : auth.blocked ? "该 JWT 已失效，继续等待新 JWT" : "JWT 已更新，恢复查询");
+        }
     });
     return configRead;
 }
@@ -190,7 +192,7 @@ function resolveTarget(input, mode) {
         (item.id === input || item.name === input ||
             (item.mode === "doctor" && item.name.replace(/[（(][^（）()]*[）)]$/, "") === input)));
     if (candidates.length === 1) return candidates[0];
-    console.error(candidates.length ? "名称有重复，请改用候选 ID：" : "未找到目标，请无参数运行查看目录。");
+    console.error(candidates.length ? "名称有重复，请改用候选 ID：" : "未找到目标，请运行 doctor 或 department 查看对应目录。");
     for (const candidate of candidates) console.error(describeTarget(candidate));
     return null;
 }
@@ -267,7 +269,7 @@ function buildMessage(target, slots) {
     const doctorLabel = doctors.slice(0, 3).join("、") + (doctors.length > 3 ? `等${doctors.length}位` : "");
     const title = [target.name, doctorLabel, slots.some(slot => slot.haji) ? "初诊可约" : "可预约",
         dateLabel, `${slots.length}条号源`].join("｜");
-    const lines = [`# ${title}`, ""];
+    const lines = [];
     for (const day of days) {
         lines.push(`## ${day}`, "");
         for (const slot of slots.filter(slot => slot.date === day)) {
@@ -292,7 +294,7 @@ async function checkSlots(target, requestAuth) {
     if (JSON.stringify(await readJson(file)) === JSON.stringify(slots)) return;
     if (slots.length) {
         const { title, content } = buildMessage(target, slots);
-        console.log(content);
+        console.log(`${title}\n\n${content}`);
         await sendNotification(title, content);
     }
     if (requestAuth !== auth) throw interrupted;
@@ -317,14 +319,50 @@ async function handleError(error, target) {
     }
 }
 
+function printHelp() {
+    console.log(`用法：
+  node slot_tracker.js                         显示帮助和环境变量状态
+  node slot_tracker.js doctor                  列出医生 ID、姓名、所属科室和院区
+  node slot_tracker.js doctor <ID或中文名>     监听医生号源
+  node slot_tracker.js department              列出科室 ID、名称和院区
+  node slot_tracker.js department <ID或中文名> 监听科室号源
+  pnpm clean                                  清理生成的快照、错误日志和临时文件
+
+环境变量（脚本目录 .env 优先于启动环境）：
+  JWT：${!auth.token ? "未设置" : tokenExpired(auth.token) ? "已设置，但已过期或格式无效" : "已设置，本地到期检查通过"}
+  PUSHDEAR_KEYS：${env("PUSHDEAR_KEYS") ? "已设置" : "未设置，监听通知需要此项"}
+  NOTIFY_HAJI_ONLY：${yes(env("NOTIFY_HAJI_ONLY")) ? "开启，仅医生模式筛选初诊" : "关闭"}
+
+设置 JWT：
+  1. 复制 .env.example 为脚本目录的 .env。
+  2. 微信进入“上海市精神卫生中心”→“预约挂号”，完成登录。
+  3. 本机 TLS 抓包查看 GetDocResource / GetDeptResource 请求头，
+     将 Authorization 中 Bearer 后面的完整字符串填入 .env 的 JWT。
+  4. 填写 PUSHDEAR_KEYS 后运行监听；JWT 失效后重新获取并更新 .env。
+本地检查不验证服务端是否接受 JWT，帮助命令不会发送请求。`);
+}
+
+async function cleanGeneratedFiles() {
+    const files = await fs.readdir(DIR);
+    for (const file of files) {
+        if (!file.endsWith(".last_result.json") && !file.endsWith(".last_result.json.tmp") &&
+            file !== "error.log.json" && file !== "error.log.json.tmp") continue;
+        await fs.unlink(path.join(DIR, file));
+        console.log(`已清理 ${file}`);
+    }
+}
+
 async function main() {
-    const args = process.argv.slice(2);
-    const mode = ["doctor", "department"].includes(args[0]) ? args.shift() : undefined;
-    if (args.length > 1 || (mode && !args.length)) {
-        console.log("用法：pnpm start [doctor|department] <ID或中文名>；无参数列出目录。");
+    const [mode, input, ...extra] = process.argv.slice(2);
+    if (mode === "clean" && !input) {
+        await cleanGeneratedFiles();
         return;
     }
-    await loadConfig();
+    await loadConfig(false);
+    if (!["doctor", "department"].includes(mode) || extra.length) {
+        printHelp();
+        return;
+    }
     watchFile(ENV_FILE, { interval: 1000 }, () => {
         loadConfig().catch(() => console.error(".env 读取失败"));
     });
@@ -341,19 +379,18 @@ async function main() {
                 const requestAuth = auth;
                 try {
                     if (!catalog) catalog = await fetchCatalog(requestAuth);
-                    if (!args.length) {
-                        console.log("科室：");
-                        for (const target of catalog.filter(item => item.mode === "department")) console.log(describeTarget(target));
-                        console.log("医生：");
-                        for (const target of catalog.filter(item => item.mode === "doctor")) console.log(describeTarget(target));
+                    if (!input) {
+                        for (const target of catalog.filter(item => item.mode === mode)) {
+                            console.log(describeTarget(target));
+                        }
                         return;
                     }
-                    const target = resolveTarget(args[0], mode);
+                    const target = resolveTarget(input, mode);
                     if (!target) return;
                     await checkSlots(target, requestAuth);
                 } catch (error) {
                     if (error !== interrupted && requestAuth === auth) {
-                        await handleError(error, args[0] || "目录");
+                        await handleError(error, input || "目录");
                     }
                 }
                 // 串行等待整轮结束；错过的整分钟不补跑。
