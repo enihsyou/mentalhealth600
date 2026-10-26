@@ -1,0 +1,40 @@
+{
+  "responseResult": {
+    "isSuccess": "1",
+    "message": "成功",
+    "subCode": null,
+    "subMessage": null
+  },
+  "hospitalList": [
+    {
+      "hospitalID": "1",
+      "hospitalName": "上海市精神卫生中心徐汇院区"
+    },
+    {
+      "hospitalID": "3",
+      "hospitalName": "上海市精神卫生中心闵行院区"
+    }
+  ],
+  "deptList": [
+    {
+      "deptCode": "1_1",
+      "deptName": "心理咨询门诊",
+      "deptList": [
+        {
+          "deptCode": "1_1_1076",
+          "deptName": "综合心理",
+          "hospitalID": "1",
+          "isDept": "1",
+          "deptList": []
+        },
+        {
+          "deptCode": "1_1_1075",
+          "deptName": "儿童心理",
+          "hospitalID": "1",
+          "isDept": "1",
+          "deptList": []
+        }
+      ]
+    }
+  ]
+}

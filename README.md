@@ -1,54 +1,60 @@
 # mentalhealth600
 
-上海市精神卫生中心门诊号源监听。支持按科室或医生关注，仅在可预约信息变化时通过 PushDeer 提醒。业务代码在 `slot_tracker.js`，需要 Node.js 20.6+ 与 pnpm。
+上海市精神卫生中心门诊号源监听。Node.js 20.6+、pnpm，业务代码位于 `slot_tracker.js`。
 
-## 配置与运行
+## 配置与使用
 
 ```powershell
 pnpm install
-pnpm start <科室编码或医生编码>
+Copy-Item .env.example .env
+# 编辑 .env，填写 JWT 和 PushDeer key
+pnpm start
+pnpm start 1_1_1076
+pnpm start doctor 范毅敏
+pnpm start department 综合心理
 ```
 
-在脚本同目录新建 `.env`（从其他目录启动也读取这里）：
+无参数时读取目录，输出全部可选科室和医生的 ID、中文名、所属科室与院区后退出。可直接传一个 ID 或中文名，也可用 `doctor` / `department` 限定类型。中文名精确匹配；医生名可省略末尾括号中的院区。名称重复时列出候选 ID 与所属信息并退出，请改用 ID，不会自动选择。ID 应从当前目录取得，勿照抄示例。
+
+脚本目录的 `.env`：
 
 ```dotenv
-LINKINGCLOUD_AUTH_URL="https://fwcs.linkingcloud.cn//Account/AuthLogin?auth_code=替换为捕获值&state=替换为捕获值"
-PUSHDEAR_KEYS="替换为你的pushkey"
+JWT="手工获取的完整JWT"
+PUSHDEAR_KEYS="你的pushkey"
 NOTIFY_HAJI_ONLY=0
 ```
 
-多个 PushDeer key 用逗号分隔。`NOTIFY_HAJI_ONLY=1` 仅在医生模式比较、提醒初诊可约时段；科室接口没有对应细分，因此科室模式仍提醒全部可约号源。初诊状态依据接口明确的“初诊:有号”文字识别。
+只通过 `JWT` 提供医院凭据；可在启动环境中设置，也可在 `.env` 中设置，文件值优先。多个 PushDeer key 用逗号分隔。`NOTIFY_HAJI_ONLY=1` 只在医生模式比较、提醒包含“初诊:有号”的时段；科室摘要没有初诊细分，科室模式仍提醒全部可约号源。
 
-科室编码为三段、医生编码为四段。旧 `1001_*` 示例已经过期；当前编码可能以 `1_*` 或其他院区编号开头，请从当前预约页面/接口响应确认目标编码，不要直接照抄旧映射。脚本从 `OrderDeptResources` 读取名称，未找到名称时显示编码，无需修改函数。
+## 微信登录与手工获取 JWT
 
-每轮完成后等待下个整分钟，启动立即执行首轮。逐日查询串行执行，任一天失败都放弃整轮，不覆盖快照。只运行一个进程关注同一目标；不同目标的快照按编码分别保存。
+1. 微信搜索“上海市精神卫生中心”，进入“预约挂号”，完成登录授权。
+2. 通过本机 TLS 抓包工具查看 `fwcs.linkingcloud.cn` 的 `GetDocResource` 或 `GetDeptResource` 请求。
+3. 从请求头 `Authorization: Bearer ...` 取出 Bearer 后面的完整 JWT，填写 `.env` 的 `JWT`，不要分享抓包或凭据。
 
-脚本每轮重新加载 `.env`，覆盖同名进程环境变量；从 `.env` 删除曾加载的变量也会清除其运行时值。认证 URL 改变后，旧会话缓存失效，并恢复尝试。其他配置变更不消耗认证 code。
+JWT 本地到期、格式无效或接口返回 HTTP 401 时，脚本暂停医院查询，并尝试发送一次标题为“JWT 失效｜号源监听已暂停”的通知。通知失败只在控制台提示，不退出、不循环重发。请自行重新登录并更新 `.env`；JWT 内容变化后自动恢复，同一内容反复保存、清空后重新填回已失效 token 都不会恢复或重复通知。此标记仅存在当前进程，重启后可再次通知。
 
-## 认证 URL 与证据边界
+每秒检查 `.env` 文件变化，支持编辑器原子替换文件；直接解析文件内容，不依赖 dotenv 默认不覆盖进程环境变量的行为。文件变量删除后回到启动环境对应值。文件短暂不存在时保留当前配置；没有 JWT 时继续等待。更换 token 不取消 WAF 等待。请求期间更新 JWT，旧请求结果会被丢弃，不会错误暂停新 JWT。
 
-1. 微信搜索“上海市精神卫生中心” → “预约挂号”。
-2. 在“统一认证中心”确认授权**之前**开启 TLS 抓包。
-3. 捕获 `https://fwcs.linkingcloud.cn//Account/AuthLogin?auth_code=...&state=...` 完整请求 URL，填入 `LINKINGCLOUD_AUTH_URL`。
+如需清理微信内置浏览器 Local Storage，可关闭微信后删除其数据目录下的 `xwechat/radium/web` 目录。具体位置取决于本机微信数据目录设置，请自行确认；脚本不会执行删除。
 
-脚本提取 `auth_code`、`state`，向固定医院域名重放 AuthLogin 请求，不跟随重定向，只接受响应中非空的 `Set-Cookie: FuWuChuang=...`。不再使用 OpenID_LinkingCloud，也不操作微信。
+## 接口与抓包依据
 
-本地 HAR 证明原始请求返回 302、同时设置了空与非空 FuWuChuang；原始请求还携带 `acw_tc`。**这不能证明浏览器已经消费的 URL 还能重放，也不能确定 code 对所有场景都只能使用一次。** 旧 code 重放失败可能与消费、过期或其他请求条件有关。此入口保留，但不保证复制登录后的 URL 就能认证成功；本版本没有完成真实服务端端到端认证。
+医院请求只发送 `Authorization: Bearer JWT` 与 `Content-Type: application/json` 两个业务请求头。以下参数来自本地抓包，未向医院接口发起实测请求：
 
-成功换到的会话保存在脚本目录 `.session.json`，重启时仅在 URL 指纹一致时复用，避免重启再次消费同一 code。文件包含会话凭据，必须限制本机访问，不要分享、同步或提交；Windows 请通过目录 ACL 控制访问，POSIX 写入权限为 0600。URL 只保存 SHA-256 指纹，不在缓存中重复保存。
+- `/api/YuYue/GetAllDeptList`：`source="deptList"`、`hospitalId=""`、`extInfo={"other":[{"groupID":"00","value":[]}]}`（JSON 字符串）。递归读取 `deptList` 中 `isDept=1` 的科室，并使用 `hospitalList` 标注院区。
+- `/api/YuYue/GetDocList`：`dataSource="指定医生"`、`hospitalId=""`、`keyWord=""`、`pageSize=20`、`pageNo=1`；`extInfo` 为 `[{"groupID":"DateRange","value":["default"]},{"groupID":"00","value":[]}]` 的 JSON 字符串。当前抓包一次返回 444 项、没有分页总数字段，脚本按该响应完整读取，不逐科室扫描；未来服务端若改为分页，需要相应调整。医生 ID 的末段之前部分关联目录科室；无法关联时显示医生目录原有科室说明和名称中的院区，不猜测院区。
+- `/api/YuYue/GetDeptResource`：`hospitalId`、`dataSource="科室号源"`、`deptCode`、`cycleConfigId=""`；读取 `docList[].docNoSource[]`。
+- `/api/YuYue/GetDocResource`：`hospitalId`、`dataSource="医生号源"`、`docCode`、`latLongitude=""`、`extInfo="[]"`、`date=""`；一次读取全部 `noSource[].docResource[]`，医生姓名取 `docInfo.docName`。
 
-同一 URL 最多尝试一次，尝试前即保存状态；失败、中途退出或接口返回 401 后暂停医院请求，等待更换认证 URL。若只有已消费/失效 URL，脚本不能凭空恢复会话。不要通过重启或反复删除缓存撞登录接口；需重新捕获可用认证信息。如果服务端要求额外上下文，则需先确认实际认证条件，不能把当前入口视作已验证可用的方案。
+315/316 响应在本地按 UTF-8 密钥、AES-ECB、PKCS7 解密。316 密钥为 `d + reverse(t.slice(8))`；315 从 `$LC$` 分段中提取密钥。`sample_response` 仅包含裁剪、脱敏后的结构示例，不含凭据或患者信息。
 
-HTTP 403、405、429 会终止本轮并至少暂停 30 分钟；更长的 `Retry-After` 会延长等待。此等待在当前进程内有效，请勿重启绕过。其他请求失败停止本轮，下一轮再查询，不做同轮自动重试。
+## 轮询与通知状态
 
-## 解密与通知状态
+首轮立即执行，整轮完成后等下个整分钟；请求串行、轮次不重叠、不补跑错过的轮次。任何请求失败都放弃本轮、保留旧快照，不把失败当成无号。HTTP 403、405、429 至少暂停 30 分钟，更长的 `Retry-After` 会延长等待；等待只在当前进程内保存。
 
-解密规则来自本地 HAR 内的前端 JS：数字/字符串 `315`、`316` 均可识别。315 在无 aesKey 且有 bizContent 时按 `$LC$` 分成恰好三段，第三段取作密钥并置空后重新连接；316 使用 `d + reverse(t.slice(8))`。UTF-8 密钥、AES-ECB、PKCS7，去掉 bizContent 首尾各四字符后解码 base64，解析 JSON 并覆盖合并原对象。无标记文本保持前端的直接 JSON 解析语义；解密或结构错误使本轮失败，不能变成空号源。
+快照按类型、目标 ID、院区和有效筛选条件隔离。无号时保存空快照，因此相同号源消失后恢复会再次提醒；有号时全部 key 和通知函数成功后才推进快照，失败则下一轮重新查询比较。只运行一个进程监听同一目标。部分 key 已成功或通知成功后进程退出，后续重试可能重复，不保证跨重启恰好一次。
 
-标题包含科室、医生、日期范围及可约时段/号源条数，数量不是患者可预约名额总和。Markdown 按日期分组，初诊可约时段加粗。
+Markdown 通知按日期分组，标题含医生、日期范围、号源条数，初诊可约时段加粗；条数不是可预约名额总数。同类普通错误通知成功后 24 小时内抑制；失败保留到下一轮重试。扩展通知服务仅需在 `notifiers` 中添加异步函数，失败必须抛出。
 
-空结果会保存为空快照，因此“有号 → 无号 → 相同号源恢复”会再次提醒。需要发送通知时，只有全部 key 和通知函数确认成功后才保存新快照；失败则保留旧快照，下一轮完整查询后重新比较、重试。若号源已消失，不补发过时通知。多 key 部分成功后重试可能重复送达，推送成功后进程恰好退出也可能重复，不保证跨重启严格恰好一次。
-
-同类错误通知成功后 24 小时内抑制重复提醒；通知失败不记为已送达。通知接入口为 `notifiers` 中的异步函数，失败应抛出异常。目前仅保留项目实际使用的 PushDeer 实现，环境变量名沿用 `PUSHDEAR_KEYS`。
-
-`.env`、`.session.json`、快照及错误日志均属于本地运行状态，不应进入版本库。请勿分享含真实认证 URL、Cookie、pushkey 或患者信息的抓包文件。
+`.env`、快照、错误日志为本地运行状态，不应提交。不要分享 JWT、pushkey 或含患者信息的抓包。

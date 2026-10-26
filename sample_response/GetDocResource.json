@@ -1,0 +1,42 @@
+{
+  "responseResult": {
+    "isSuccess": "1",
+    "message": "成功",
+    "subCode": null,
+    "subMessage": null
+  },
+  "docInfo": {
+    "docCode": "1_1_1076_373",
+    "docName": "范毅敏"
+  },
+  "noSource": [
+    {
+      "docResource": [
+        {
+          "resourceID": "1_1_1076_373_737319_1212277",
+          "docCode": "1_1_1076_373",
+          "deptCode": "1_1_1076",
+          "deptName": "综合心理",
+          "hospitalID": "1",
+          "hospitalName": "上海市精神卫生中心徐汇院区",
+          "day": "2026-10-27",
+          "timeEnd": "08:00-08:30【初诊:已满 复诊:已满】",
+          "resourceMemo": "已满",
+          "isAvailable": "0"
+        },
+        {
+          "resourceID": "1_1_1076_373_737319_1212278",
+          "docCode": "1_1_1076_373",
+          "deptCode": "1_1_1076",
+          "deptName": "综合心理",
+          "hospitalID": "1",
+          "hospitalName": "上海市精神卫生中心徐汇院区",
+          "day": "2026-10-27",
+          "timeEnd": "08:30-09:00【初诊:已满 复诊:已满】",
+          "resourceMemo": "已满",
+          "isAvailable": "0"
+        }
+      ]
+    }
+  ]
+}

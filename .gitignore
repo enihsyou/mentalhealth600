@@ -1,19 +1,12 @@
-# 环境变量文件
+# 本地环境与运行状态
 .env
-
-# cookie文件
-.cookie.txt
-
-# 上次结果文件
 *.last_result.json
-
-# 日志文件
 *.log
 error.log.json
+*.json.tmp
 
 # Node.js
 node_modules/
 
-# 会话与状态写入临时文件
 .session.json
-*.json.tmp
+.cookie.txt
