@@ -48,6 +48,6 @@ JWT 失效后需要自行重新登录并更新 `.env`，脚本会自动恢复查
 
 - [平台接口与响应解密](docs/api.md)
 - [认证状态、轮询与通知](docs/runtime.md)
-- [变更记录](change%20log.md)
+- [变更记录](CHANGELOG.md)
 
 `.env`、快照、错误日志为本地运行状态，不应提交。不要分享 JWT、pushkey 或含患者信息的抓包。
